@@ -1,0 +1,709 @@
+/* 
+Maths test program with 4x4 Matrix Keypad connected to Arduino 
+This code prints the key pressed on the keypad to the serial port
+Display changed to a 20x04 LCD
+*/ 
+ 
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h> 
+
+// To support 4x4 Keypad for input 
+#include <Keypad.h> 
+ 
+// Variables for Keypad 
+const byte numRows= 4; //number of rows on the keypad 
+const byte numCols= 4; //number of columns on the keypad 
+
+// Variables for normal questions
+long first_no = 0; 
+long sec_no = 0; 
+long third_no = 0;
+long four_no = 0;
+
+// Variables for fraction questions
+long first_a = 0;
+long first_b = 0;
+long first_c = 1;
+long sec_a = 0;
+long sec_b = 0;
+long sec_c = 1;
+long ans_a = 0;
+long ans_b = 0;
+long ans_c = 1;
+
+
+// Operators
+long opr1 = 0; 
+long opr2 = 0; 
+long opr3 = 0; 
+long answer = 0; 
+bool four_Q = false;
+int Q_type = 0;
+char fract_ans[12] = { "" }; 
+
+/* char keymap[numRows][numCols]= 
+{ 
+  {'4', '8', '/', '='}, 
+  {'3', '7', '-', 'C'}, 
+  {'2', '6', '0', 'B'}, 
+  {'1', '5', '9', 'A'} 
+}; 
+
+//Code that shows the the keypad connections to the arduino terminals 
+byte rowPins[numRows] = {9,8,7,6}; //Rows 0 to 3 
+byte colPins[numCols]= {5,4,3,2}; //Columns 0 to 3 
+*/
+char keymap[numRows][numCols]= 
+{ 
+  {'1', '2', '3', 'A'}, 
+  {'4', '5', '6', 'B'}, 
+  {'7', '8', '9', 'C'}, 
+  {'*', '0', '#', 'D'} 
+}; 
+byte rowPins[numRows] = {2,3,4,5}; //Rows 0 to 3 
+byte colPins[numCols]= {6,7,8,9}; //Columns 0 to 3 
+
+ 
+//Buffer to collect input 
+char buf[12] = { "" }; 
+char temp_Q[80]; 
+int i = 0; 
+int ready_out = 0; 
+
+ 
+//Initializes an instance of the Keypad class 
+Keypad myKeypad= Keypad(makeKeymap(keymap), rowPins, colPins, numRows, numCols); 
+
+//Initializes an instance of the LCD
+LiquidCrystal_I2C lcd(0x3f,20,4);  // set the LCD address to 0x27 for a 16 chars and 2 line display 
+ 
+// Global message buffers shared by Serial and Scrolling functions 
+// #define  BUF_SIZE  80
+#define  LINE_SIZE 20 
+// char curMessage[BUF_SIZE] = { "" }; 
+// char newMessage[BUF_SIZE] = { "Press # to start!!!!" }; 
+
+// 4 lines of messages
+char line_1[LINE_SIZE] = { "Q: " };
+char line_2[LINE_SIZE] = { " " };
+char line_3[LINE_SIZE] = { " " };
+char line_4[LINE_SIZE] = { " " };
+char latter[8] = { "" };
+
+ 
+//Generate +/- Maths questions by using random generated no. 
+void question() 
+{ 
+  randomSeed(analogRead(3) * millis());   
+  char temp[10] = { "" };
+
+  strcpy(line_1, "Q: ");
+  strcpy(line_2, " ");
+  strcpy(line_3, " ");
+  strcpy(line_4, " ");
+
+  first_no = random(999); 
+  sec_no = random(first_no); 
+  opr1 = random(0, 999);  
+
+  lcd.clear();
+  //use Line_x to setup new question 
+  Serial.print("Question: "); 
+  Serial.print(first_no); 
+  ltoa(first_no, temp, 10); 
+  strcpy(line_1, "Q: ");
+  strcat(line_1, temp);
+  lcd.setCursor(0,0);
+  lcd.print(line_1); 
+  switch (opr1 % 4) 
+  { 
+    case 0:      
+      Serial.print(" + "); 
+      strcpy(line_2, " + "); 
+      answer = first_no + sec_no; 
+      break; 
+    case 1:      
+      Serial.print(" - "); 
+      strcpy(line_2, " - "); 
+      answer = first_no - sec_no; 
+      break; 
+    case 2:      
+      Serial.print(" + "); 
+      strcpy(line_2, " + "); 
+      answer = first_no + sec_no; 
+      break; 
+    case 3:      
+      Serial.print(" - "); 
+      strcpy(line_2, " - "); 
+      answer = first_no - sec_no; 
+      break; 
+  } 
+  Serial.print(sec_no); 
+  ltoa(sec_no, temp, 10); 
+  strcat(line_2, temp); 
+  lcd.setCursor(0,1);
+  lcd.print(line_2); 
+  Serial.println(" = ?"); 
+  strcpy(line_3, " = ?      ANS:"); 
+  lcd.setCursor(0,2);
+  lcd.print(line_3);
+  strcpy(line_4, "          ");
+  lcd.setCursor(0,3);
+  lcd.print(line_4);
+  four_Q = false;
+  Q_type = 1;
+} 
+
+//Generate all 4 operations Maths questions 
+void four_question() 
+{ 
+  randomSeed(analogRead(3) * millis());   
+  char temp[10] = { "" };
+
+  strcpy(line_1, "Q: ");
+  strcpy(line_2, " ");
+  strcpy(line_3, " ");
+  strcpy(line_4, " ");
+    
+  first_no = random(999); 
+  sec_no = random(first_no);
+  third_no = random(first_no);
+  four_no = random(first_no); 
+  opr1 = random(0, 999);  
+  opr2 = random(0, opr1);  
+  opr3 = random(0, opr2);  
+
+  lcd.clear();
+  //use Line_x to setup new question 
+  Serial.print("Question: "); 
+  Serial.print(first_no); 
+  ltoa(first_no, temp, 10); 
+  strcpy(line_1, "Q: ");
+  strcat(line_1, temp);
+  lcd.setCursor(0,0);
+  lcd.print(line_1); 
+  switch (opr1 % 4) 
+  { 
+    case 0:      
+      Serial.print(" + "); 
+      strcpy(line_2, " + "); 
+      answer = first_no + sec_no; 
+      break; 
+    case 1:      
+      Serial.print(" - "); 
+      strcpy(line_2, " - "); 
+      answer = first_no - sec_no; 
+      break; 
+    case 2:      
+      Serial.print(" x "); 
+      strcpy(line_2, " x "); 
+      answer = first_no * sec_no; 
+      break; 
+    case 3:      
+      Serial.print(" / "); 
+      strcpy(line_2, " / "); 
+      answer = (long)(first_no / sec_no);
+      break; 
+  } 
+  Serial.print(sec_no); 
+  Serial.print("  (");
+  Serial.print(answer);
+  Serial.print(")  ");
+  ltoa(sec_no, temp, 10); 
+  strcat(line_2, temp); 
+  lcd.setCursor(0,1);
+  lcd.print(line_2);
+  
+  switch (opr2 % 4) 
+  { 
+    case 0:      
+      Serial.print(" + "); 
+      strcpy(line_3, " + "); 
+      answer = answer + third_no; 
+      break; 
+    case 1:      
+      Serial.print(" - "); 
+      strcpy(line_3, " - "); 
+      answer = answer - third_no; 
+      break; 
+    case 2:      
+      Serial.print(" x "); 
+      strcpy(line_3, " x "); 
+      answer = answer * third_no; 
+      break; 
+    case 3:      
+      Serial.print(" / "); 
+      strcpy(line_3, " / "); 
+      answer = (long)(answer / third_no);
+      break; 
+  } 
+  Serial.print(third_no); 
+  Serial.print("  (");
+  Serial.print(answer);
+  Serial.print(")  ");
+  ltoa(third_no, temp, 10); 
+  strcat(line_3, temp); 
+  lcd.setCursor(0,2);
+  lcd.print(line_3);
+  lcd.setCursor(10, 2);
+  lcd.print("ANS :");
+  
+  switch (opr3 % 4) 
+  { 
+    case 0:      
+      Serial.print(" + "); 
+      strcpy(line_4, " + "); 
+      answer = answer + four_no; 
+      break; 
+    case 1:      
+      Serial.print(" - "); 
+      strcpy(line_4, " - "); 
+      answer = answer - four_no; 
+      break; 
+    case 2:      
+      Serial.print(" x "); 
+      strcpy(line_4, " x "); 
+      answer = answer * four_no; 
+      break; 
+    case 3:      
+      Serial.print(" / "); 
+      strcpy(line_4, " / "); 
+      answer = (long)(answer / four_no);
+      break; 
+  } 
+  Serial.print(four_no); 
+  Serial.print("  (");
+  Serial.print(answer);
+  Serial.print(")  ");
+  ltoa(four_no, temp, 10); 
+  strcat(line_4, temp);
+  Serial.println(" = ?"); 
+  strcat(line_4, " = ?"); 
+  for (int p = 0; p < (10 - strlen(line_4)); p++)
+  {
+    strcat(line_4, " ");
+  }
+  lcd.setCursor(0,3);
+  lcd.print(line_4);
+  four_Q = true;
+  Q_type = 2;
+} 
+
+// Do fraction ADD
+void fract_ADD()
+{
+  long d = 0;
+  char temp[6] = { "" };
+
+  ans_a = 0;
+  ans_b = 0;
+  ans_c = 1;
+
+  // Fraction add calculation
+  ans_b = (((first_a* first_c) + first_b) * sec_c) + (((sec_a * sec_c) + sec_b) * first_c);
+  ans_c = first_c * sec_c;
+  ans_a = ans_b / ans_c;
+  ans_b = ans_b % ans_c;  
+
+  // Simplify the fraction
+  if (ans_b > ans_c)
+  {
+    d = ans_c;
+  }
+  else
+  {
+    d = ans_b;
+  }
+
+  for (int i = d; i > 0; i--)
+  {
+    if ((ans_b % i == 0) && (ans_c % i ==0))
+    {
+        ans_b = ans_b / i;
+        ans_c = ans_c / i;
+    }
+  }
+  
+  strcpy(fract_ans, "");
+  ltoa(ans_a, temp, 10);
+  if (temp != 0)
+  {
+    strcat(fract_ans, temp);
+    strcat(fract_ans, " ");  
+  }
+  ltoa(ans_b, temp, 10);
+  strcat(fract_ans, temp);
+  strcat(fract_ans, "/");
+  ltoa(ans_c, temp, 10);
+  strcat(fract_ans, temp);
+}
+
+// Do fraction Subtraction
+void fract_SUB()
+{
+  long d = 0;
+  char temp[6] = { "" };
+  
+  ans_a = 0;
+  ans_b = 0;
+  ans_c = 1;
+
+  // Fraction subtract calculation
+  ans_b = (((first_a* first_c) + first_b) * sec_c) - (((sec_a * sec_c) + sec_b) * first_c);
+  ans_c = first_c * sec_c;
+  ans_a = ans_b / ans_c;
+  ans_b = ans_b % ans_c;  
+
+  // Simplify the fraction
+  if (ans_b > ans_c)
+  {
+    d = ans_c;
+  }
+  else
+  {
+    d = ans_b;
+  }
+
+  for (int i = d; i > 0; i--)
+  {
+    if ((ans_b % i == 0) && (ans_c % i ==0))
+    {
+        ans_b = ans_b / i;
+        ans_c = ans_c / i;
+    }
+  }
+  strcpy(fract_ans, "");
+  ltoa(ans_a, temp, 10);
+  if (temp != 0)
+  {
+    strcat(fract_ans, temp);
+    strcat(fract_ans, " ");
+  }
+  ltoa(ans_b, temp, 10);
+  strcat(fract_ans, temp);
+  strcat(fract_ans, "/");
+  ltoa(ans_c, temp, 10);
+  strcat(fract_ans, temp);
+}
+
+// Generate questions on fractions
+void fraction_Q()
+{
+  randomSeed(analogRead(3) * millis());   
+  char temp[10] = { "" };
+
+  strcpy(line_1, "Q: ");
+  strcpy(line_2, " ");
+  strcpy(line_3, " ");
+  strcpy(line_4, " ");
+  strcpy(latter, "");
+
+  first_a = random(99); 
+  first_c = random(99) + 1; 
+  first_b = random(first_c); 
+  sec_a = random(first_a); 
+  sec_c = random(99) + 1; 
+  sec_b = random(sec_c); 
+  opr1 = random(0, 999);  
+
+  if (sec_b > first_b)
+  {
+    sec_b = first_b;
+  }
+
+  lcd.clear();
+  //use Line_x to setup new question 
+  Serial.print("Question: "); 
+  strcpy(line_1, "Q: ");
+  lcd.setCursor(0,0);
+  lcd.print(line_1);
+  
+// create first fraction
+  strcpy(line_2, "");
+  ltoa(first_a, temp, 10); 
+  if (temp != 0)
+  {
+    strcat(line_2, temp);
+    strcat(line_2, " ");
+  }
+  ltoa(first_b, temp, 10);
+  strcat(line_2, temp);
+  ltoa(first_c, temp, 10);
+  strcat(line_2, "/");
+  strcat(line_2, temp);
+
+// create first fraction
+  ltoa(sec_a, temp, 10); 
+  if (temp != 0)
+  {
+    strcat(latter, temp);
+    strcat(latter, " ");
+  } 
+  ltoa(sec_b, temp, 10);
+  strcat(latter, temp);
+  ltoa(sec_c, temp, 10);
+  strcat(latter, "/");
+  strcat(latter, temp);
+  
+  switch (opr1 % 4) 
+  { 
+    case 0:      
+      Serial.print(" + "); 
+      strcat(line_2, " + "); 
+      strcat(line_2, latter);
+      fract_ADD(); 
+      break; 
+    case 1:      
+      Serial.print(" - "); 
+      strcat(line_2, " - "); 
+      strcat(line_2, latter);
+      fract_SUB(); 
+      break; 
+    case 2:      
+      Serial.print(" + "); 
+      strcat(line_2, " + "); 
+      strcat(line_2, latter);
+      fract_ADD(); 
+      break; 
+    case 3:      
+      Serial.print(" - "); 
+      strcat(line_2, " - "); 
+      strcat(line_2, latter);
+      fract_SUB(); 
+      break; 
+  } 
+  Serial.print(line_2); 
+  lcd.setCursor(0,1);
+  lcd.print(line_2); 
+  Serial.println(" = ?"); 
+  strcpy(line_3, " = ?      ANS:"); 
+  lcd.setCursor(0,2);
+  lcd.print(line_3);
+  strcpy(line_4, "          ");
+  lcd.setCursor(0,3);
+  lcd.print(line_4);
+  Q_type = 3; 
+}
+
+void refresh_LCD()
+{
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print(line_1);
+  lcd.setCursor(0,1);
+  lcd.print(line_2);
+  lcd.setCursor(0,2);
+  lcd.print(line_3);
+  lcd.setCursor(0,3);
+  lcd.print(line_4);
+  lcd.display();
+}
+ 
+void setup() 
+{ 
+  Serial.begin(9600); 
+  Serial.print("\nA -> +, -  \nB -> + - x / \nC -> Fraction\n"); 
+
+  lcd.init();                      // initialize the lcd 
+  lcd.clear();
+  // Print a message to the LCD.
+  lcd.backlight();
+  lcd.setCursor(0,0);
+  lcd.print("A -> +, -  ");
+  lcd.setCursor(0,1);
+  lcd.print("B -> + - x / ");
+  lcd.setCursor(0,2);
+  lcd.print("C -> Fraction");
+  lcd.setCursor(0,3);
+  lcd.print("");
+  
+  while (true) 
+  { 
+    char keyin = myKeypad.getKey(); 
+
+    if (keyin == 'A') 
+    { 
+      Serial.println("+ or -  questions"); 
+      lcd.clear();
+      question(); 
+      break; 
+    } 
+    else if (keyin == 'B')
+    { 
+      Serial.println("+ - * / questions"); 
+      lcd.clear();
+      four_question(); 
+      break; 
+    } 
+    else if (keyin == 'C')
+    { 
+      Serial.println("Fraction questions"); 
+      lcd.clear();
+      fraction_Q(); 
+      break; 
+    }
+  } 
+
+ 
+} 
+ 
+//If key is pressed, this key is stored in 'keypressed' variable 
+//If key is not equal to 'NO_KEY', then this key is printed out 
+//if count=9, then count is reset back to 0 (this means no key is pressed during the whole keypad scan process 
+void loop() 
+{ 
+  char keypressed = myKeypad.getKey(); 
+  if (keypressed != NO_KEY) 
+  { 
+//    if ((keypressed != '#') && (keypressed != 'A') && (keypressed != 'B') && (keypressed != 'C')) 
+    if ((keypressed != 'A') && (keypressed != 'B')) 
+    { 
+      if (keypressed != 'D') 
+      { 
+        if (keypressed == '#')
+        {
+          keypressed = '-';
+        }
+        else if (keypressed == '*')
+        {
+          keypressed = '/';
+        }
+        else if (keypressed == 'C')
+        {
+          if (Q_type == 3)
+          {
+            keypressed = ' ';
+          }
+          else
+          {
+            Serial.println("Fraction questions"); 
+            lcd.clear();
+            fraction_Q();           
+          }
+        }
+        
+        Serial.print(keypressed); 
+        if (i < 11) 
+        { 
+          buf[i] = keypressed; 
+          lcd.setCursor(10,3);
+          lcd.print(buf);
+          i++;  
+        } 
+        else if (i == 11) 
+        { 
+          buf[i] = keypressed; 
+          Serial.println("Buffer full!");     
+          lcd.setCursor(10,3);
+          lcd.print(buf);
+          ready_out = 1; 
+          i = 0; 
+        } 
+      } 
+      else 
+      { 
+        Serial.println("Check answer");
+        buf[i] = '\0';
+        ready_out = 1; 
+        i = 0; 
+      } 
+    }
+    else 
+    {
+      if (keypressed == 'A') 
+      { 
+        Serial.println("+ or -  questions"); 
+        lcd.clear();
+        question(); 
+      } 
+      else if (keypressed == 'B')
+      { 
+        Serial.println("+ - * / questions"); 
+        lcd.clear();
+        four_question(); 
+      } 
+    }  
+  }  
+
+  if (ready_out == 1) 
+  { 
+    //Serial.println(buf); 
+    if (Q_type == 3)
+    {
+      answer = 99999;
+      for (int c = 0; c < strlen(fract_ans); c++)
+      {
+        if (fract_ans[c] != buf[c])
+        {
+          answer = -1000;
+          break;
+        }
+      }
+      if (answer == 99999)
+      {
+        lcd.setCursor(10,3);
+        lcd.print("Correct!  ");
+        delay(1000);
+        lcd.setCursor(10,3);
+        lcd.print("Next Q!!!");
+        delay(1000);
+        fraction_Q(); 
+      }
+      else
+      {
+        Serial.println("\nYou're wrong!!!  Try again!!!"); 
+        Serial.print("  :  ");
+        Serial.println(fract_ans);
+        Serial.println(buf);
+        lcd.setCursor(10,3);
+        lcd.print("Wrong!    ");
+        delay(1000);
+        lcd.setCursor(10,3);
+        lcd.print("Try Again!");
+        delay(1000);
+        refresh_LCD();  
+      }
+       
+    }
+    else
+    {
+      if (answer == atol(buf)) 
+      { 
+        Serial.println("\nCorrect!!!\nNext Question...\n"); 
+        lcd.setCursor(10,3);
+        lcd.print("Correct!  ");
+        delay(1000);
+        lcd.setCursor(10,3);
+        lcd.print("Next Q!!!");
+        delay(1000);
+        if(four_Q)
+        { 
+          four_question(); 
+        }
+        else
+        {
+          question();
+        }
+      } 
+      else 
+      { 
+        Serial.println("\nYou're wrong!!!  Try again!!!"); 
+        Serial.print("  :  ");
+        Serial.println(answer);
+        lcd.setCursor(10,3);
+        lcd.print("Wrong!    ");
+        delay(1000);
+        lcd.setCursor(10,3);
+        lcd.print("Try Again!");
+        delay(1000);
+        refresh_LCD();
+      }
+    } 
+    ready_out = 0; 
+    for (int r = 0; r < 12; r++) 
+    { 
+      buf[r] = ' '; 
+    } 
+  }  
+
+}   
