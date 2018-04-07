@@ -19,7 +19,7 @@ long third_no = 0;
 long four_no = 0;
 
 // Variables for fraction questions
-long first_a = 0;
+long first_a = 0; 
 long first_b = 0;
 long first_c = 1;
 long sec_a = 0;
@@ -381,12 +381,13 @@ void fract_CON_1()
   ans_a = first_a;
   ans_b = first_b;
   ans_c = first_c;
-
+  
   // Simplify the fraction
+  ans_a = ans_a + (first_b / first_c);
+  
   if ((first_b % first_c) == 0)
   {
-      ans_a = ans_a + (first_b / first_c);
-      first_b = 0; 
+      ans_b = 0; 
   }
   else
   {
